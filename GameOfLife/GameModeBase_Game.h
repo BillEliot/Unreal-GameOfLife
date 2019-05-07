@@ -28,9 +28,16 @@ protected:
     void BeginPlay() override;
 
     EViewMode ViewMode;
+
+    class AActor_Cells* pCells;
     class APlayerController* pPlayerController;
 
 public:
+    UFUNCTION(BlueprintCallable)
+        void Start(const bool bStart);
+    UFUNCTION(BlueprintCallable)
+        void OneStep();
+
     FORCEINLINE EViewMode GetViewMode() const { return ViewMode; }
     FORCEINLINE class APlayerController* GetPlayerController() const { return pPlayerController; }
     void SetGameMode();

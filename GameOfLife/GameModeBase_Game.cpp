@@ -2,8 +2,10 @@
 
 #include "GameModeBase_Game.h"
 #include "Pawn/Pawn_View.h"
+#include "Actor/Actor_Cells.h"
 #include "HUD_Game.h"
 #include "Engine/World.h"
+#include "Public/EngineUtils.h"
 
 
 AGameModeBase_Game::AGameModeBase_Game() {
@@ -18,6 +20,9 @@ void AGameModeBase_Game::BeginPlay() {
 
     pPlayerController = GetWorld()->GetFirstPlayerController();
     SetUIMode();
+    for (TActorIterator<AActor_Cells> iterator(GetWorld()); iterator; ++iterator) {
+        pCells = *iterator;
+    }
 }
 
 void AGameModeBase_Game::SetGameMode() {
@@ -30,4 +35,16 @@ void AGameModeBase_Game::SetUIMode() {
     InputMode.SetHideCursorDuringCapture(false);
     pPlayerController->SetInputMode(InputMode);
     pPlayerController->bShowMouseCursor = true;
+}
+
+void AGameModeBase_Game::Start(const bool bStart) {
+    if (pCells) {
+        pCells->Start(bStart);
+    }
+}
+
+void AGameModeBase_Game::OneStep() {
+    if (pCells) {
+        pCells->OneStep();
+    }
 }

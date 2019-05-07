@@ -21,7 +21,7 @@ void APawn_View::BeginPlay() {
     Super::BeginPlay();
 
     SetActorRotation(FQuat(FRotator(-90.f, 0, 0)));
-    SetActorLocation(FVector(0,0,8000.f));
+    SetActorLocation(FVector(0,0,4000.f));
     pGameMode_Game = Cast<AGameModeBase_Game>(GetWorld()->GetAuthGameMode());
 }
 
@@ -82,8 +82,8 @@ void APawn_View::SetCell() {
         // Mouse Pos To World Pos
         pPlayerController->DeprojectMousePositionToWorld(WorldPosition, WorldDirection);
         // Trace
-        GetWorld()->LineTraceSingleByChannel(HitResult, WorldPosition, WorldPosition+FVector(0,0,-1.f)*10000.f, ECollisionChannel::ECC_Visibility);
-        if (HitResult.GetComponent() == Cast<UPrimitiveComponent>(Cast<AActor_Cells>(HitResult.GetActor())->GetPanel())) {
+        GetWorld()->LineTraceSingleByChannel(HitResult, WorldPosition, WorldPosition+ WorldDirection * 10000.f, ECollisionChannel::ECC_Visibility);
+        if (HitResult.GetActor() && HitResult.GetComponent() == Cast<UPrimitiveComponent>(Cast<AActor_Cells>(HitResult.GetActor())->GetPanel())) {
             Cast<AActor_Cells>(HitResult.GetActor())->SetCell(HitResult.ImpactPoint);
         }
     }
