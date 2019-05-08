@@ -4,21 +4,22 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/DefaultPawn.h"
-#include "Pawn_View.generated.h"
+#include "DefaultPawn_View.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class GAMEOFLIFE_API APawn_View : public APawn
+class GAMEOFLIFE_API ADefaultPawn_View : public ADefaultPawn
 {
 	GENERATED_BODY()
 	
 public:
-    APawn_View();
+    ADefaultPawn_View();
 	
 protected:
     class UCameraComponent* pCamera;
+    class USpringArmComponent* pSpringArm;
 
     float speed;
     class AGameModeBase_Game* pGameMode_Game;
@@ -26,10 +27,9 @@ protected:
     void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
     void BeginPlay() override;
 
-    void Turn(const float axis);
-    void LookUp(const float axis);
     void MoveForward(const float axis);
     void MoveRight(const float axis);
+    void Scale(const float axis);
 
     void SetCell();
 };

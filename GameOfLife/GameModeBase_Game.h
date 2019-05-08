@@ -8,9 +8,10 @@
 
 
 // View Mode
-enum EViewMode {
-    E_GOD,
-    E_FREE
+UENUM(BlueprintType)
+enum class EViewMode : uint8 {
+    E_GOD UMETA(DisplayName = "God"),
+    E_FREE UMETA(DisplayName = "Free")
 };
 
 /**
@@ -36,7 +37,13 @@ public:
     UFUNCTION(BlueprintCallable)
         void Start(const bool bStart);
     UFUNCTION(BlueprintCallable)
+        void Reset();
+    UFUNCTION(BlueprintCallable)
         void OneStep();
+    UFUNCTION(BlueprintCallable)
+        void SetViewMode(const EViewMode viewMode);
+
+    void ChangeEvoluteSpeed(const float Speed);
 
     FORCEINLINE EViewMode GetViewMode() const { return ViewMode; }
     FORCEINLINE class APlayerController* GetPlayerController() const { return pPlayerController; }

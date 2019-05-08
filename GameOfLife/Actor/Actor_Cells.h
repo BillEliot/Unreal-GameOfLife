@@ -39,19 +39,18 @@ protected:
     float EvoluteSpeed;
 
     TArray<int32> Array_DyingCells;
-    TArray<FVector2D> Array_WillActiveCells;
-    TArray<FVector2D> Array_PotentialCells;
-    TArray<FVector2D> Array_ActiveCells;
+    TMap<FVector2D, int32> Map_PotentialCells;
 
     FVector CalcCellLocation(FVector ImpactPoint);
     int32 GetAroundActiveCells(const int32 nIndex);
-    int32 GetAroundActiveCells(const FVector2D Location);
-    void DetectAndAddToPotentialArray(const int32 nIndex);
-    void DetectAndAddToPotentialArray(const FVector2D Location);
+    bool CheckLocation(const FVector2D Location);
+    void NotifyPotentialCells(const int32 nIndex);
 
 public:	
     FORCEINLINE class UStaticMeshComponent* GetPanel() const { return pPanel; }
     void SetCell(FVector ImpactPoint);
     void Start(const bool bStart);
+    void Reset();
     void OneStep();
+    void ChangeEvoluteSpeed(const float Speed);
 };

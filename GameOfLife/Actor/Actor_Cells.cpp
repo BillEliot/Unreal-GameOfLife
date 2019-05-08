@@ -100,7 +100,33 @@ Input:              NULL
 Return:            NULL
 *************************************************/
 void AActor_Cells::OneStep() {
-    // TimerFunction();
+    TimerFunction();
+}
+
+/*************************************************
+Function:         Reset()
+Description:    Reset the game
+Calls:               AGameModeBase_Game::Reset()
+Input:              NULL
+Return:            NULL
+*************************************************/
+void AActor_Cells::Reset() {
+    if (TimerHandle.IsValid()) GetWorldTimerManager().PauseTimer(TimerHandle);
+    pCells->ClearInstances();
+    Array_DyingCells.Empty();
+    Map_PotentialCells.Empty();
+}
+
+/*************************************************
+Function:         ChangeEvoluteSpeed()
+Description:    Change the speed of evolution
+Calls:               AGameModeBase_Game::ChangeEvoluteSpeed()
+Input:              float: Evolution speed
+Return:            NULL
+*************************************************/
+void AActor_Cells::ChangeEvoluteSpeed(const float Speed) {
+    EvoluteSpeed = Speed;
+    GetWorldTimerManager().SetTimer(TimerHandle, this, &AActor_Cells::TimerFunction, EvoluteSpeed, true);
 }
 
 /*************************************************
@@ -112,44 +138,34 @@ Return:            NULL
 *************************************************/
 void AActor_Cells::Start(const bool bStart) {
     if (bStart) {
-        // Add Potential Cells Array
-        for (int32 index = 0; pCells->GetInstanceCount(); ++index) {
-            DetectAndAddToPotentialArray(index);
-        }
-
         if (TimerHandle.IsValid()) GetWorldTimerManager().UnPauseTimer(TimerHandle);
-        else GetWorldTimerManager().SetTimer(TimerHandle, this, &AActor_Cells::TimerFunction, EvoluteSpeed, false, 0);
+        else GetWorldTimerManager().SetTimer(TimerHandle, this, &AActor_Cells::TimerFunction, EvoluteSpeed, true, 0);
     }
     else {
         GetWorldTimerManager().PauseTimer(TimerHandle);
     }
 }
 void AActor_Cells::TimerFunction() {
-    // Detect Active Cells
+    // Detect active cells and add potential cells
     for (int32 index = 0; index < pCells->GetInstanceCount(); ++index) {
+        NotifyPotentialCells(index);
+
         int32 nCells = GetAroundActiveCells(index);
-        if (nCells != 2 && nCells != 3) Array_DyingCells.AddUnique(index);
+        if (nCells < 2 || nCells > 3) Array_DyingCells.AddUnique(index);
     }
-    // Detect Potential Cells
-    for (auto Location : Array_PotentialCells) {
-        int32 nCells = GetAroundActiveCells(Location);
-        if (nCells == 3) Array_WillActiveCells.AddUnique(Location);
-    }
-    // Clear Potential Cells Array
-    Array_PotentialCells.Empty();
     // Update Cells' Next Generation
-    for (auto index : Array_DyingCells) {
-        pCells->RemoveInstance(index);
+    for (int32 index = 0; index < Array_DyingCells.Num(); ++index) {
+        pCells->RemoveInstance(Array_DyingCells[index]);
+        // Update instanced cell's index
+        for (int32 i = index+1; i < Array_DyingCells.Num(); ++i) { Array_DyingCells[i] -= 1; }
     }
-    for (auto Location : Array_WillActiveCells) {
-        // Add to Potential Cells Array
-        DetectAndAddToPotentialArray(Location);
+    for (auto cell : Map_PotentialCells) {
         // Create new
-        pCells->AddInstance(FTransform(FQuat(FRotator(0,0,0)), FVector(Location, 0)));
+        if (cell.Value == 3 && !CheckLocation(cell.Key)) pCells->AddInstance(FTransform(FQuat(FRotator(0, 0, 0)), FVector(cell.Key, 0)));
     }
-    // Clear Array
+    // Clear
     Array_DyingCells.Empty();
-    Array_WillActiveCells.Empty();
+    Map_PotentialCells.Empty();
 }
 
 /*************************************************
@@ -168,87 +184,71 @@ int32 AActor_Cells::GetAroundActiveCells(const int32 nIndex) {
     // Get around cells
     FCollisionQueryParams CollisionQueryParams;
     CollisionQueryParams.AddIgnoredComponent(pPanel);
-    GetWorld()->SweepMultiByChannel(HitResults, CellTransform.GetLocation(), CellTransform.GetLocation(), FQuat(FRotator(0,0,0)), ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(CellSize.X / 2 * 3, CellSize.Y / 2 * 3, CellSize.Z / 2)), CollisionQueryParams);
-
-    // Ignore self
-    return HitResults.Num() - 1;
-}
-int32 AActor_Cells::GetAroundActiveCells(const FVector2D Location) {
-    TArray<FHitResult> HitResults;
-
-    // Get around cells
-    FCollisionQueryParams CollisionQueryParams;
-    CollisionQueryParams.AddIgnoredComponent(pPanel);
-    GetWorld()->SweepMultiByChannel(HitResults, FVector(Location, 0), FVector(Location, 0), FQuat(FRotator(0, 0, 0)), ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(CellSize.X / 2 * 3, CellSize.Y / 2 * 3, CellSize.Z / 2)), CollisionQueryParams);
+    GetWorld()->SweepMultiByChannel(HitResults, CellTransform.GetLocation(), CellTransform.GetLocation(), FQuat(FRotator(0,0,0)), ECollisionChannel::ECC_Visibility, FCollisionShape::MakeBox(FVector(CellSize.X, CellSize.Y, CellSize.Z)), CollisionQueryParams);
 
     // Ignore self
     return HitResults.Num() - 1;
 }
 
 /*************************************************
-Function:         DetectAndAddToPotentialArray()
-Description:    Search around 8 directions to add inactivated cells
-Calls:               
-Input:              FVector: The cell's location
-Return:            NULL
+Function:         CheckLocation()
+Description:    Check the location if has a cell
+Calls:               this->TimerFunction()
+Input:              FVector2D: Checked Location
+Return:            Whether has
 *************************************************/
-void AActor_Cells::DetectAndAddToPotentialArray(const FVector2D Location) {
+bool AActor_Cells::CheckLocation(const FVector2D Location) {
     FHitResult HitResult;
-    bool bHit = false;
-    // Down
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X - CellSize.X, Location.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X - CellSize.X, Location.Y));
-    // Up
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X + CellSize.X, Location.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X + CellSize.X, Location.Y));
-    // Left
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X, Location.Y - CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X, Location.Y - CellSize.Y));
-    // Right
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X, Location.Y + CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X, Location.Y + CellSize.Y));
-    // DownLeft
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X - CellSize.X, Location.Y - CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X - CellSize.X, Location.Y - CellSize.Y));
-    // DownRight
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X - CellSize.X, Location.Y + CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X - CellSize.X, Location.Y + CellSize.Y));
-    // UpLeft
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X + CellSize.X, Location.Y - CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X + CellSize.X, Location.Y - CellSize.Y));
-    // UpRight
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X + CellSize.X, Location.Y + CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X + CellSize.X, Location.Y + CellSize.Y));
+    FCollisionQueryParams CollisionQueryParams;
+
+    CollisionQueryParams.AddIgnoredComponent(pPanel);
+    return GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location, 100.f), ECollisionChannel::ECC_Visibility, CollisionQueryParams);
 }
-void AActor_Cells::DetectAndAddToPotentialArray(const int32 nIndex) {
-    FHitResult HitResult;
+
+/*************************************************
+Function:         NotifyPotentialCells()
+Description:    Notify cells around the cell that survival cell counts in 8 directions around them plus one
+Calls:               this->TimerFunction()
+Input:              int32: the instanced cell's index
+Return:            The number of cells around the cell(8 directions)
+*************************************************/
+void AActor_Cells::NotifyPotentialCells(const int32 nIndex) {
     FTransform CellTransform;
-    bool bHit = false;
 
     pCells->GetInstanceTransform(nIndex, CellTransform);
-    FVector2D Location(CellTransform.GetLocation().X, CellTransform.GetLocation().Y);
-    // Down
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X - CellSize.X, Location.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X - CellSize.X, Location.Y));
+    FVector2D CellLocation(CellTransform.GetLocation());
+    FVector2D Location(0, 0);
+    
     // Up
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X + CellSize.X, Location.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X + CellSize.X, Location.Y));
+    Location = FVector2D(CellLocation.X + CellSize.X, CellLocation.Y);
+    if (Map_PotentialCells.Contains(Location)) Map_PotentialCells[Location] += 1;
+    else Map_PotentialCells.Add(Location, 1);
+    // Down
+    Location = FVector2D(CellLocation.X - CellSize.X, CellLocation.Y);
+    if (Map_PotentialCells.Contains(Location)) Map_PotentialCells[Location] += 1;
+    else Map_PotentialCells.Add(Location, 1);
     // Left
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X, Location.Y - CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X, Location.Y - CellSize.Y));
+    Location = FVector2D(CellLocation.X, CellLocation.Y - CellSize.Y);
+    if (Map_PotentialCells.Contains(Location)) Map_PotentialCells[Location] += 1;
+    else Map_PotentialCells.Add(Location, 1);
     // Right
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X, Location.Y + CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X, Location.Y + CellSize.Y));
-    // DownLeft
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X - CellSize.X, Location.Y - CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X - CellSize.X, Location.Y - CellSize.Y));
-    // DownRight
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X - CellSize.X, Location.Y + CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X - CellSize.X, Location.Y + CellSize.Y));
+    Location = FVector2D(CellLocation.X, CellLocation.Y + CellSize.Y);
+    if (Map_PotentialCells.Contains(Location)) Map_PotentialCells[Location] += 1;
+    else Map_PotentialCells.Add(Location, 1);
     // UpLeft
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X + CellSize.X, Location.Y - CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X + CellSize.X, Location.Y - CellSize.Y));
+    Location = FVector2D(CellLocation.X + CellSize.X, CellLocation.Y - CellSize.Y);
+    if (Map_PotentialCells.Contains(Location)) Map_PotentialCells[Location] += 1;
+    else Map_PotentialCells.Add(Location, 1);
     // UpRight
-    bHit = GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location.X + CellSize.X, Location.Y + CellSize.Y, 0), ECollisionChannel::ECC_Visibility);
-    if (!bHit) Array_PotentialCells.AddUnique(FVector2D(Location.X + CellSize.X, Location.Y + CellSize.Y));
+    Location = FVector2D(CellLocation.X + CellSize.X, CellLocation.Y + CellSize.Y);
+    if (Map_PotentialCells.Contains(Location)) Map_PotentialCells[Location] += 1;
+    else Map_PotentialCells.Add(Location, 1);
+    // DownLeft
+    Location = FVector2D(CellLocation.X - CellSize.X, CellLocation.Y - CellSize.Y);
+    if (Map_PotentialCells.Contains(Location)) Map_PotentialCells[Location] += 1;
+    else Map_PotentialCells.Add(Location, 1);
+    // DownRight
+    Location = FVector2D(CellLocation.X - CellSize.X, CellLocation.Y + CellSize.Y);
+    if (Map_PotentialCells.Contains(Location)) Map_PotentialCells[Location] += 1;
+    else Map_PotentialCells.Add(Location, 1);
 }

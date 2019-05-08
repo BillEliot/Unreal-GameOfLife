@@ -14,7 +14,16 @@ class GAMEOFLIFE_API UUserWidget_HUD : public UUserWidget
 {
 	GENERATED_BODY()
 	
+public:
+    UUserWidget_HUD(const FObjectInitializer& objectInitializer);
 	
-	
-	
+protected:
+    bool bStart;
+    UPROPERTY(BlueprintReadonly)
+        FText StartText;
+
+    UFUNCTION(BlueprintCallable)
+        void ChangeEvoluteSpeed(const float Value);
+    UFUNCTION(BlueprintCallable)
+        void StartGame();
 };
