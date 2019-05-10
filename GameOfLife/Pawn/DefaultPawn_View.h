@@ -19,7 +19,6 @@ public:
 	
 protected:
     class UCameraComponent* pCamera;
-    class USpringArmComponent* pSpringArm;
 
     float speed;
     class AGameModeBase_Game* pGameMode_Game;
@@ -32,4 +31,10 @@ protected:
     void Scale(const float axis);
 
     void SetCell();
+    void ToggleUI();
+    void GodView();
+    void FreeView();
+
+public:
+    void ResetView();
 };

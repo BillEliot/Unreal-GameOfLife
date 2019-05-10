@@ -3,6 +3,7 @@
 #include "Actor_Cells.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Actor/Actor_Cell.h"
 #include "Engine/StaticMesh.h"
 #include "Public/TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
@@ -14,10 +15,6 @@ AActor_Cells::AActor_Cells()
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-    nPanelWidthScale = 5;
-    nPanelHeightScale = 5;
-    nCellWidthScale = 1;
-    nCellHeightScale = 1;
     EvoluteSpeed = 1.f;
 
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
@@ -27,11 +24,13 @@ AActor_Cells::AActor_Cells()
     pPanel = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Panel"));
     if (object_Panel.Succeeded()) pPanel->SetStaticMesh(object_Panel.Object);
     if (object_Material_Panel.Succeeded()) pPanel->SetMaterial(0, object_Material_Panel.Object);
-    pPanel->SetWorldScale3D(FVector(nPanelWidthScale, nPanelHeightScale, 1.f));
+    pPanel->SetWorldScale3D(FVector(5.f, 5.f, 1.f));
     pPanel->SetupAttachment(RootComponent);
+    // Default panel size is FVector(1000.f, 1000.f, 1.f)
     PanelSize = pPanel->GetStaticMesh()->GetBoundingBox().GetSize();
-    PanelSize.X *= nPanelWidthScale;
-    PanelSize.Y *= nPanelHeightScale;
+    // Default scale is 5
+    PanelSize.X *= 5;
+    PanelSize.Y *= 5;
 
     static ConstructorHelpers::FObjectFinder<UStaticMesh> object_Cell(TEXT("StaticMesh'/Engine/BasicShapes/Cube.Cube'"));
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> object_Material_Cell(TEXT("Material'/Game/M_DefaultCell.M_DefaultCell'"));
@@ -40,8 +39,6 @@ AActor_Cells::AActor_Cells()
     if (object_Material_Cell.Succeeded()) pCells->SetMaterial(0, object_Material_Cell.Object);
     pCells->SetupAttachment(RootComponent);
     CellSize = pCells->GetStaticMesh()->GetBoundingBox().GetSize();
-    CellSize.X *= nCellWidthScale;
-    CellSize.Y *= nCellHeightScale;
 }
 
 // Called when the game starts or when spawned
@@ -57,6 +54,17 @@ void AActor_Cells::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+}
+
+void AActor_Cells::ToogleWireframe(const bool bWireframeVisible) {
+    if (bWireframeVisible) {
+        UMaterialInterface* pM_Wireframe = LoadObject<UMaterialInterface>(this, TEXT("Material'/Game/M_WireframePanel.M_WireframePanel'"));
+        if (pM_Wireframe) pPanel->SetMaterial(0, pM_Wireframe);
+    }
+    else {
+        UMaterialInterface* pM_Default = LoadObject<UMaterialInterface>(this, TEXT("Material'/Game/M_DefaultPanel.M_DefaultPanel'"));
+        if (pM_Default) pPanel->SetMaterial(0, pM_Default);
+    }
 }
 
 /*************************************************
@@ -90,6 +98,27 @@ void AActor_Cells::SetCell(FVector ImpactPoint) {
     FVector CellLocation = CalcCellLocation(ImpactPoint);
 
     pCells->AddInstance(FTransform(FQuat(FRotator(0,0,0)), CellLocation));
+}
+
+/*************************************************
+Function:         UnsetCell()
+Description:    Remove a created instanced cell
+Calls:               APawn_View::UnsetCell()
+Input:              ImpactPoint: Clicked position
+Return:            NULL
+*************************************************/
+void AActor_Cells::UnsetCell(FVector ImpactPoint) {
+    FVector CellLocation = CalcCellLocation(ImpactPoint);
+
+    // Due to the characteristics of UInstancedStaticMeshComponent, we must enum it
+    for (int32 nIndex = 0; nIndex < pCells->GetInstanceCount(); ++nIndex) {
+        FTransform CellTransform;
+        pCells->GetInstanceTransform(nIndex, CellTransform);
+        if (CellTransform.GetLocation() == CellLocation) {
+            pCells->RemoveInstance(nIndex);
+            break;
+        }
+    }
 }
 
 /*************************************************
@@ -130,6 +159,22 @@ void AActor_Cells::ChangeEvoluteSpeed(const float Speed) {
 }
 
 /*************************************************
+Function:         ChangePanelSize()
+Description:    Change size of the panel
+Calls:               AGameModeBase_Game::ChangePanelSize()
+Input:              int32: New panel width scale
+                       int32: New panel height scale
+Return:            NULL
+*************************************************/
+void AActor_Cells::ChangePanelSize(const int32 nWidthScale, const int32 nHeightScale) {
+    pPanel->SetWorldScale3D(FVector(nWidthScale, nHeightScale, 1.f));
+    pPanel->SetWorldLocation(FVector(0,0,0));
+
+    PanelSize.X = 1000.f * nWidthScale;
+    PanelSize.Y = 1000.f * nHeightScale;
+}
+
+/*************************************************
 Function:         Start()
 Description:    Start/Stop to evolute by TimerFunction
 Calls:               AGameModeBase_Game::Start()
@@ -148,8 +193,9 @@ void AActor_Cells::Start(const bool bStart) {
 void AActor_Cells::TimerFunction() {
     // Detect active cells and add potential cells
     for (int32 index = 0; index < pCells->GetInstanceCount(); ++index) {
-        NotifyPotentialCells(index);
+        if (!IsOnPanel(index)) continue;
 
+        NotifyPotentialCells(index);
         int32 nCells = GetAroundActiveCells(index);
         if (nCells < 2 || nCells > 3) Array_DyingCells.AddUnique(index);
     }
@@ -166,6 +212,8 @@ void AActor_Cells::TimerFunction() {
     // Clear
     Array_DyingCells.Empty();
     Map_PotentialCells.Empty();
+
+    //UE_LOG(LogTemp, Warning, TEXT("%d"), pCells->GetInstanceCount());
 }
 
 /*************************************************
@@ -203,6 +251,30 @@ bool AActor_Cells::CheckLocation(const FVector2D Location) {
 
     CollisionQueryParams.AddIgnoredComponent(pPanel);
     return GetWorld()->LineTraceSingleByChannel(HitResult, FVector(Location, 0), FVector(Location, 100.f), ECollisionChannel::ECC_Visibility, CollisionQueryParams);
+}
+
+/*************************************************
+Function:         IsOnPanel()
+Description:    Check if the cell is on the panel, if not, we will spawn a AActor_Cell to simulate physics(UInstancedStaticMesh doesn't support "Simulate Physics")
+Calls:               this->TimerFunction()
+Input:              int32: The instanced cell's index
+Return:            If the cell is on the panel
+*************************************************/
+bool AActor_Cells::IsOnPanel(const int32 nIndex) {
+    FTransform CellTransform;
+
+    pCells->GetInstanceTransform(nIndex, CellTransform);
+
+    if (CellTransform.GetLocation().X >= PanelSize.X / 2 || CellTransform.GetLocation().Y >= PanelSize.Y / 2 || CellTransform.GetLocation().X <= -PanelSize.X / 2 || CellTransform.GetLocation().Y <= -PanelSize.Y / 2) {
+        // Will be remove in the next update
+        Array_DyingCells.Add(nIndex);
+        // Spawn to simulate physics
+        GetWorld()->SpawnActor<AActor_Cell>(AActor_Cell::StaticClass(), CellTransform);
+
+        return false;
+    }
+
+    return true;
 }
 
 /*************************************************

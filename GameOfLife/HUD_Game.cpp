@@ -3,6 +3,9 @@
 #include "HUD_Game.h"
 #include "UI/UserWidget_HUD.h"
 
+AHUD_Game::AHUD_Game() {
+    bUIVisible = true;
+}
 
 void AHUD_Game::BeginPlay() {
     Super::BeginPlay();
@@ -14,3 +17,13 @@ void AHUD_Game::BeginPlay() {
     }
 }
 
+void AHUD_Game::ToggleUI() {
+    if (bUIVisible) {
+        pHUD->SetVisibility(ESlateVisibility::Hidden);
+        bUIVisible = false;
+    }
+    else {
+        pHUD->SetVisibility(ESlateVisibility::Visible);
+        bUIVisible = true;
+    }
+}

@@ -32,6 +32,7 @@ protected:
 
     class AActor_Cells* pCells;
     class APlayerController* pPlayerController;
+    class ACharacter_Dragon* pDragon;
 
 public:
     UFUNCTION(BlueprintCallable)
@@ -42,8 +43,14 @@ public:
         void OneStep();
     UFUNCTION(BlueprintCallable)
         void SetViewMode(const EViewMode viewMode);
+    UFUNCTION(BlueprintCallable)
+        void ResetView();
 
     void ChangeEvoluteSpeed(const float Speed);
+    void ChangePanelSize(const int32 nWidthScale, const int32 nHeightScale);
+    void ToggleUI();
+    void ToggleDragon(const bool bDragonVisible);
+    void ToggleWireframe(const bool bWireframeVisible);
 
     FORCEINLINE EViewMode GetViewMode() const { return ViewMode; }
     FORCEINLINE class APlayerController* GetPlayerController() const { return pPlayerController; }

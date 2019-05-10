@@ -30,8 +30,6 @@ protected:
 
     uint32 nPanelWidthScale;
     uint32 nPanelHeightScale;
-    uint32 nCellWidthScale;
-    uint32 nCellHeightScale;
 
     FVector PanelSize;
     FVector CellSize;
@@ -44,13 +42,18 @@ protected:
     FVector CalcCellLocation(FVector ImpactPoint);
     int32 GetAroundActiveCells(const int32 nIndex);
     bool CheckLocation(const FVector2D Location);
+    bool IsOnPanel(const int32 nIndex);
     void NotifyPotentialCells(const int32 nIndex);
 
 public:	
     FORCEINLINE class UStaticMeshComponent* GetPanel() const { return pPanel; }
+    FORCEINLINE class UInstancedStaticMeshComponent* GetCells() const { return pCells; }
     void SetCell(FVector ImpactPoint);
+    void UnsetCell(FVector ImpactPoint);
     void Start(const bool bStart);
     void Reset();
     void OneStep();
     void ChangeEvoluteSpeed(const float Speed);
+    void ChangePanelSize(const int32 nWidthScale, const int32 nHeightScale);
+    void ToogleWireframe(const bool bWireframeVisible);
 };
